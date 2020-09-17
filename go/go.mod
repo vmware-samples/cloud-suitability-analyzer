@@ -22,7 +22,6 @@ require (
 	github.com/gin-gonic/gin v1.6.3
 	github.com/jinzhu/gorm v1.9.14
 	github.com/jmhodges/levigo v1.0.0 // indirect
-	github.com/joho/sqltocsv v0.0.0-20190824231449-5650f27fd5b6 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/lib/pq v1.7.0
 	github.com/mattn/go-sqlite3 v1.14.0

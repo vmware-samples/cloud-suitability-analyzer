@@ -412,6 +412,7 @@ func (r *Rule) typeIsValid() (isValid bool, err error) {
 	if r.Type != REGEX_MATCH_TYPE &&
 		r.Type != XPATH_MATCH_TYPE &&
 		r.Type != YAMLPATH_MATCH_TYPE &&
+		r.Type != PLUGIN_MATCH_TYPE &&
 		r.Type != SIMPLE_TEXT_MATCH_TYPE &&
 		r.Type != SIMPLE_TEXT_CI_MATCH_TYPE &&
 		r.Type != STARTS_WITH_MATCH_TYPE &&
@@ -424,6 +425,7 @@ func (r *Rule) typeIsValid() (isValid bool, err error) {
 			REGEX_MATCH_TYPE,
 			XPATH_MATCH_TYPE,
 			YAMLPATH_MATCH_TYPE,
+			PLUGIN_MATCH_TYPE,
 			SIMPLE_TEXT_CI_MATCH_TYPE,
 			SIMPLE_TEXT_MATCH_TYPE,
 			STARTS_WITH_CI_MATCH_TYPE,

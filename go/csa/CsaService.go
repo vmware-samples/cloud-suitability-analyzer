@@ -118,6 +118,7 @@ func (csaService *CsaService) concurrentAnalysis(run *model.Run) {
 
 	apps := run.AppsOrdered()
 	util.InitializeSpinners(len(apps))
+
 	//app analysis
 	for i := range apps {
 		waitGroup.Add(1)

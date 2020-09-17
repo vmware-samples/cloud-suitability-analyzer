@@ -8,9 +8,12 @@ package csa
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,7 +28,6 @@ import (
 )
 
 func (csaService *CsaService) processFile(run *model.Run, app *model.Application, file *util.FileInfo, rules []model.Rule, hasContentRules bool, output chan<- interface{}) (findingCnt int, err error) {
-
 	if len(rules) > 0 {
 
 		//Get File Lang
@@ -126,8 +128,153 @@ func (csaService *CsaService) processFile(run *model.Run, app *model.Application
 	return findingCnt, nil
 }
 
-func (csaService *CsaService) processPatterns(run *model.Run, app *model.Application, file *util.FileInfo, line int, target string, rule model.Rule, output chan<- interface{}) int {
+func (csaService *CsaService) handleRuleMatched(run *model.Run, app *model.Application, file *util.FileInfo, line int, target string, rule model.Rule, pattern model.Pattern, output chan<- interface{}, result string, finding *model.Finding) {
+	matchHasImpact := true
 
+	//Track Rule matches for rules that have the associated impact type. Otherwise that is a waste of time!
+	if rule.Impact == model.APP_IMPACT {
+		app.Lock()
+		mCnt, ruleHitBefore := app.MatchedRules[rule.Name]
+		app.MatchedRules[rule.Name] = mCnt + 1
+		app.Unlock()
+		matchHasImpact = !ruleHitBefore
+	} else if rule.Impact == model.FILE_IMPACT {
+		file.Lock()
+		mCnt, ruleHitBefore := file.MatchedRules[rule.Name]
+		file.MatchedRules[rule.Name] = mCnt + 1
+		file.Unlock()
+		matchHasImpact = !ruleHitBefore
+	}
+
+	effort := rule.Effort
+	if pattern.Effort != 0 {
+		effort = pattern.Effort
+	}
+
+	readiness := rule.Readiness
+	if pattern.Readiness > 0 {
+		readiness = pattern.Readiness
+	}
+
+	criticality := rule.Criticality
+	if pattern.Criticality != "" {
+		criticality = pattern.Criticality
+	}
+
+	category := rule.Category
+	if pattern.Category != "" {
+		category = pattern.Category
+	}
+
+	note := ""
+	if !matchHasImpact {
+		note = fmt.Sprintf("Original effort [%d] of finding was squashed by rule impact setting of [%s]", effort, rule.Impact)
+		effort = 0
+		readiness = 0
+	}
+
+	data := model.Finding{
+		RunID:       run.ID,
+		Filename:    file.Name,
+		Fqn:         file.FQN,
+		Ext:         file.Ext,
+		Line:        line,
+		Rule:        rule.Name,
+		Pattern:     pattern.Value,
+		Category:    category,
+		Effort:      effort,
+		Note:        note,
+		Result:      result,
+		Readiness:   readiness,
+		Criticality: criticality,
+		Application: file.Dir}
+
+	if finding != nil {
+		data.Filename = finding.Filename
+		data.Fqn = finding.Fqn
+		data.Ext = finding.Ext
+		data.Advice = finding.Advice
+		data.Line = finding.Line
+	}
+
+	if data.Advice == "" {
+		data.Advice = rule.Advice
+
+		if pattern.Advice != "" {
+			data.Advice = pattern.Advice
+		}
+	}
+
+	data.SetValue(target)
+
+	//Add Tags from rule & pattern
+	for _, tag := range rule.Tags {
+		data.AddTag(tag.Value)
+		app.AssociateTag(model.ApplicationTag{Value: tag.Value})
+	}
+
+	if pattern.Tag != "" {
+		data.AddTag(pattern.Tag)
+		app.AssociateTag(model.ApplicationTag{Value: pattern.Tag})
+	}
+
+	//Add Recipes
+	for _, recipe := range rule.Recipes {
+		data.AddRecipe(recipe.URI)
+	}
+
+	if pattern.Recipe != "" {
+		data.AddRecipe(pattern.Recipe)
+	}
+
+	//Send finding to save worker
+	output <- data
+}
+
+func (csaService *CsaService) RunPlugin(run *model.Run, app *model.Application, file *util.FileInfo, line int, target string, rule model.Rule, pattern model.Pattern, output chan<- interface{}) {
+	commandTokens := regexp.MustCompile("\\s+").Split(pattern.Value, -1)
+	command := commandTokens[0]
+	path := file.FQN
+	args := append(commandTokens[1:], path)
+
+	fmt.Println(command)
+	fmt.Println(path)
+
+	cmd := exec.Command("plugins\\"+command, args...)
+
+	if stdout, err := cmd.StdoutPipe(); err == nil {
+		if stderr, err := cmd.StderrPipe(); err == nil {
+			if err = cmd.Start(); err == nil {
+				_ = stderr
+
+				decoder := json.NewDecoder(stdout)
+				var finding model.Finding
+
+				for ; err == nil; err = decoder.Decode(&finding) {
+					csaService.handleRuleMatched(run, app, file, line, target, rule, pattern, output, "", &finding)
+				}
+
+				if err = cmd.Wait(); err == nil {
+					fmt.Fprintln(os.Stderr, "Unable to end plugin")
+					fmt.Fprintln(os.Stderr, err)
+				} else {
+					fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!! ENDED !!!!!!!!!!!!!!!!!!!!!!!!")
+				}
+			} else {
+				fmt.Fprintln(os.Stderr, "Unable to start plugin")
+				fmt.Fprintln(os.Stderr, err)
+			}
+		} else {
+			fmt.Fprintln(os.Stderr, "Unable to open plugin's stdout")
+			fmt.Fprintln(os.Stderr, err)
+		}
+	} else {
+		fmt.Fprintln(os.Stderr, "Unable to open plugin's stderr")
+		fmt.Fprintln(os.Stderr, err)
+	}
+}
+
+func (csaService *CsaService) processPatterns(run *model.Run, app *model.Application, file *util.FileInfo, line int, target string, rule model.Rule, output chan<- interface{}) int {
 	if *util.Verbose {
 		fmt.Printf("Rule [%s|%s] checking against Value [%s]\n", rule.Name, rule.FileType, target)
 	}
@@ -141,149 +288,64 @@ func (csaService *CsaService) processPatterns(run *model.Run, app *model.Applica
 
 	//Process Patterns against line
 	for i := range rule.Patterns {
-
 		if *util.Verbose {
 			fmt.Printf("\tRule [%s|%s] Pattern [%s] checking against Value [%s]\n", rule.Name, rule.FileType, rule.Patterns[i].Pattern, target)
 		}
 
-		matchHasImpact := true
+		if rule.Patterns[i].Type == model.PLUGIN_MATCH_TYPE {
+			csaService.RunPlugin(run, app, file, line, target, rule, rule.Patterns[i], output)
+			// RunPlugin(run, app, file, line, target, rule, pattern, output, Value, file.FQN)
+		} else {
+			matchFunc := func() (bool, string) {
+				return rule.Patterns[i].Match(target)
+			}
 
-		matchFunc := func() (bool, string) {
-			return rule.Patterns[i].Match(target)
-		}
+			if rule.Patterns[i].Type == model.XPATH_MATCH_TYPE {
+				csaService.xmlMux.Lock()
 
-		if rule.Patterns[i].Type == model.XPATH_MATCH_TYPE {
-			csaService.xmlMux.Lock()
-
-			if csaService.xmlDocs[file.FQN] == nil {
-				if rawData, err := ioutil.ReadFile(file.FQN); err == nil {
-					if xml, err := xmlquery.Parse(bytes.NewReader(rawData)); err == nil {
-						csaService.xmlDocs[file.FQN] = xml
+				if csaService.xmlDocs[file.FQN] == nil {
+					if rawData, err := ioutil.ReadFile(file.FQN); err == nil {
+						if xml, err := xmlquery.Parse(bytes.NewReader(rawData)); err == nil {
+							csaService.xmlDocs[file.FQN] = xml
+						}
 					}
+				}
+
+				csaService.xmlMux.Unlock()
+
+				matchFunc = func() (bool, string) {
+					return rule.Patterns[i].MatchXml(csaService.xmlDocs[file.FQN])
+				}
+			} else if rule.Patterns[i].Type == model.YAMLPATH_MATCH_TYPE {
+				csaService.yamlMux.Lock()
+
+				if csaService.yamlDocs[file.FQN] == nil {
+					if rawData, err := ioutil.ReadFile(file.FQN); err == nil {
+						var node yaml.Node
+						err = yaml.Unmarshal(rawData, &node)
+
+						if err == nil {
+							csaService.yamlDocs[file.FQN] = &node
+						}
+					}
+				}
+
+				csaService.yamlMux.Unlock()
+
+				matchFunc = func() (bool, string) {
+					return rule.Patterns[i].MatchYaml(csaService.yamlDocs[file.FQN])
 				}
 			}
 
-			csaService.xmlMux.Unlock()
+			// if value, ok := path.String(root); ok
+			if ok, result := matchFunc(); ok {
+				csaService.handleRuleMatched(run, app, file, line, target, rule, rule.Patterns[i], output, result, nil)
 
-			matchFunc = func() (bool, string) {
-				return rule.Patterns[i].MatchXml(csaService.xmlDocs[file.FQN])
-			}
-		} else if rule.Patterns[i].Type == model.YAMLPATH_MATCH_TYPE {
-			csaService.yamlMux.Lock()
+				findings++
+				cnt++
+			} //End Match Condition
 
-			if csaService.yamlDocs[file.FQN] == nil {
-				if rawData, err := ioutil.ReadFile(file.FQN); err == nil {
-					var node yaml.Node
-					err = yaml.Unmarshal(rawData, &node)
-
-					if err == nil {
-						csaService.yamlDocs[file.FQN] = &node
-					}
-				}
-			}
-
-			csaService.yamlMux.Unlock()
-
-			matchFunc = func() (bool, string) {
-				return rule.Patterns[i].MatchYaml(csaService.yamlDocs[file.FQN])
-			}
 		}
-
-		// if value, ok := path.String(root); ok
-		if ok, result := matchFunc(); ok {
-			//Track Rule matches for rules that have the associated impact type. Otherwise that is a waste of time!
-			if rule.Impact == model.APP_IMPACT {
-				app.Lock()
-				mCnt, ruleHitBefore := app.MatchedRules[rule.Name]
-				app.MatchedRules[rule.Name] = mCnt + 1
-				app.Unlock()
-				matchHasImpact = !ruleHitBefore
-			} else if rule.Impact == model.FILE_IMPACT {
-				file.Lock()
-				mCnt, ruleHitBefore := file.MatchedRules[rule.Name]
-				file.MatchedRules[rule.Name] = mCnt + 1
-				file.Unlock()
-				matchHasImpact = !ruleHitBefore
-			}
-
-			advice := rule.Advice
-			if rule.Patterns[i].Advice != "" {
-				advice = rule.Patterns[i].Advice
-			}
-
-			effort := rule.Effort
-			if rule.Patterns[i].Effort != 0 {
-				effort = rule.Patterns[i].Effort
-			}
-
-			readiness := rule.Readiness
-			if rule.Patterns[i].Readiness > 0 {
-				readiness = rule.Patterns[i].Readiness
-			}
-
-			criticality := rule.Criticality
-			if rule.Patterns[i].Criticality != "" {
-				criticality = rule.Patterns[i].Criticality
-			}
-
-			category := rule.Category
-			if rule.Patterns[i].Category != "" {
-				category = rule.Patterns[i].Category
-			}
-
-			note := ""
-			if !matchHasImpact {
-				note = fmt.Sprintf("Original effort [%d] of finding was squashed by rule impact setting of [%s]", effort, rule.Impact)
-				effort = 0
-				readiness = 0
-			}
-
-			data := model.Finding{
-				RunID:       run.ID,
-				Filename:    file.Name,
-				Fqn:         file.FQN,
-				Ext:         file.Ext,
-				Line:        line,
-				Rule:        rule.Name,
-				Pattern:     rule.Patterns[i].Value,
-				Category:    category,
-				Advice:      advice,
-				Effort:      effort,
-				Note:        note,
-				Result:      result,
-				Readiness:   readiness,
-				Criticality: criticality,
-				Application: file.Dir}
-
-			data.SetValue(target)
-
-			//Add Tags from rule & pattern
-			for _, tag := range rule.Tags {
-				data.AddTag(tag.Value)
-				app.AssociateTag(model.ApplicationTag{Value: tag.Value})
-			}
-
-			if rule.Patterns[i].Tag != "" {
-				data.AddTag(rule.Patterns[i].Tag)
-				app.AssociateTag(model.ApplicationTag{Value: rule.Patterns[i].Tag})
-			}
-
-			//Add Recipes
-			for _, recipe := range rule.Recipes {
-				data.AddRecipe(recipe.URI)
-			}
-
-			if rule.Patterns[i].Recipe != "" {
-				data.AddRecipe(rule.Patterns[i].Recipe)
-			}
-
-			//Send finding to save worker
-			output <- data
-
-			findings++
-			cnt++
-
-		} //End Match Condition
 
 		pcnt++
 
