@@ -234,13 +234,8 @@ func (csaService *CsaService) handleRuleMatched(run *model.Run, app *model.Appli
 func (csaService *CsaService) RunPlugin(run *model.Run, app *model.Application, file *util.FileInfo, line int, target string, rule model.Rule, pattern model.Pattern, output chan<- interface{}) {
 	commandTokens := regexp.MustCompile("\\s+").Split(pattern.Value, -1)
 	command := commandTokens[0]
-	path := file.FQN
-	args := append(commandTokens[1:], path)
-
-	fmt.Println(command)
-	fmt.Println(path)
-
-	cmd := exec.Command("plugins\\"+command, args...)
+	args := append(commandTokens[1:], file.FQN)
+	cmd := exec.Command("plugins"+string(os.PathSeparator)+command, args...)
 
 	if stdout, err := cmd.StdoutPipe(); err == nil {
 		if stderr, err := cmd.StderrPipe(); err == nil {
@@ -257,8 +252,6 @@ func (csaService *CsaService) RunPlugin(run *model.Run, app *model.Application, 
 				if err = cmd.Wait(); err == nil {
 					fmt.Fprintln(os.Stderr, "Unable to end plugin")
 					fmt.Fprintln(os.Stderr, err)
-				} else {
-					fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!! ENDED !!!!!!!!!!!!!!!!!!!!!!!!")
 				}
 			} else {
 				fmt.Fprintln(os.Stderr, "Unable to start plugin")
