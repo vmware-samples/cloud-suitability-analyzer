@@ -1,17 +1,14 @@
 #qc1
-name: config-sessionState
+name: config-sessionState-xpath
 filetype: config$
-target: line
-type: contains
+target: file
+type: xpath
 advice: App should be executed as a stateless process
 readiness: 2
-effort: 500
+effort: 200
 category: stateful
 tags:
   - value: stateful
   - value: TAS
 patterns:
-  - value: mode="InProc"
-  - value: mode="StateServer"
-## mode="InProc"
-## mode="StateServer"
+  - value: /configuration/system.web/sessionState[@mode="InProc" or @mode="StateServer"][1]

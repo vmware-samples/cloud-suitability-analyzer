@@ -33,6 +33,7 @@ type Rule struct {
 	Tags            []Tag          `json:",omitempty" yaml:",omitempty"`
 	Recipes         []Recipe       `gorm:"foreignkey:RuleID" json:",omitempty" yaml:",omitempty"`
 	Patterns        []Pattern      `gorm:"foreignkey:RuleID"`
+	Command         string         `gorm:"type:text" json:",omitempty" yaml:",omitempty"`
 	regex           *regexp.Regexp `gorm:"-" json:"-" yaml:"-"`
 	Metric          *RuleMetric    `gorm:"-" json:"-" yaml:"-"`
 	overrideApplies bool           `gorm:"-" json:"-" yaml:"-"`
@@ -89,8 +90,8 @@ func (r *Rule) IsValid() (isValid bool, err error) {
 	}
 
 	//Patterns
-	if len(r.Patterns) < 1 {
-		return false, fmt.Errorf("Rule must have at least one (1) pattern")
+	if len(r.Patterns) < 1 && len(r.Command) < 1 {
+		return false, fmt.Errorf("Rule must have at least one (1) pattern OR a command")
 	} else {
 		for _, pattern := range r.Patterns {
 			err = pattern.IsValid(r)
@@ -190,6 +191,10 @@ func (r *Rule) UpdateRule(newRule Rule) (deletedPatterns []Pattern, deletedRecip
 
 	if newRule.Type != "" && newRule.Type != r.Type {
 		r.Type = newRule.Type
+	}
+
+	if newRule.Command != "" && newRule.Command != r.Command {
+		r.Command = newRule.Command
 	}
 
 	if newRule.DefaultPattern != "" && newRule.DefaultPattern != r.DefaultPattern {
@@ -479,7 +484,7 @@ func (r *Rule) defaultPatternIsValid() (isValid bool, err error) {
 
 	}
 
-	if r.DefaultPattern == "" {
+	if r.DefaultPattern == "" && len(r.Command) < 1 {
 		//If I don't have a default pattern I must contain at least one pattern with a pattern!
 		if len(r.Patterns) < 1 {
 			return false, fmt.Errorf("Rule has no default pattern and no patterns!")
