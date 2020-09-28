@@ -38,13 +38,14 @@ type Pattern struct {
 	Recipe        string         `gorm:"index;type:text" json:"recipe,omitempty" yaml:"recipe,omitempty"`
 	Category      string         `json:"category,omitempty" yaml:"category,omitempty"`
 	compiledRegex *regexp.Regexp `gorm:"-" json:"-" yaml:"-"`
+	Command       string         `gorm:"type:text" json:",omitempty" yaml:",omitempty"`
 	sync.Mutex    `gorm:"-" json:"-" yaml:"-"`
 }
 
 func (p *Pattern) IsValid(rule *Rule) error {
 
-	if p.Value == "" {
-		return fmt.Errorf("A valid rule pattern requires a value!")
+	if len(p.Value) < 1 && len(p.Command) < 1 {
+		return fmt.Errorf("A valid rule pattern requires a value or command!")
 	}
 
 	if p.Type == REGEX_MATCH_TYPE || rule.Type == REGEX_MATCH_TYPE {

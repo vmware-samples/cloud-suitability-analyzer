@@ -233,7 +233,7 @@ func (csaService *CsaService) handleRuleMatched(run *model.Run, app *model.Appli
 }
 
 func (csaService *CsaService) RunPlugin(run *model.Run, app *model.Application, file *util.FileInfo, line int, target string, rule model.Rule, pattern model.Pattern, output chan<- interface{}) {
-	commandTokens := regexp.MustCompile("\\s+").Split(rule.Command, -1)
+	commandTokens := regexp.MustCompile("\\s+").Split(pattern.Command, -1)
 	command := commandTokens[0]
 	args := append(commandTokens[1:], file.FQN)
 	cmd := exec.Command("plugins"+string(os.PathSeparator)+command, args...)
