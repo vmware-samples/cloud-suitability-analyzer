@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -246,11 +247,17 @@ func (csaService *CsaService) RunPlugin(run *model.Run, app *model.Application, 
 				decoder := json.NewDecoder(stdout)
 				var finding model.Finding
 
-				for ; err == nil; err = decoder.Decode(&finding) {
+				for ; err != io.EOF; err = decoder.Decode(&finding) {
 					csaService.handleRuleMatched(run, app, file, line, target, rule, pattern, output, "", &finding)
 				}
 
-				if err = cmd.Wait(); err == nil {
+				scanner := bufio.NewScanner(stderr)
+
+				for scanner.Scan() {
+					fmt.Fprintln(os.Stderr, "plugin "+command+" stderr: "+scanner.Text())
+				}
+
+				if err = cmd.Wait(); err != nil {
 					fmt.Fprintln(os.Stderr, "Unable to end plugin")
 					fmt.Fprintln(os.Stderr, err)
 				}
