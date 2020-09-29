@@ -242,8 +242,6 @@ func (csaService *CsaService) RunPlugin(run *model.Run, app *model.Application, 
 	if stdout, err := cmd.StdoutPipe(); err == nil {
 		if stderr, err := cmd.StderrPipe(); err == nil {
 			if err = cmd.Start(); err == nil {
-				_ = stderr
-
 				decoder := json.NewDecoder(stdout)
 				var finding model.Finding
 
@@ -254,7 +252,7 @@ func (csaService *CsaService) RunPlugin(run *model.Run, app *model.Application, 
 				scanner := bufio.NewScanner(stderr)
 
 				for scanner.Scan() {
-					fmt.Fprintln(os.Stderr, "plugin "+command+" stderr: "+scanner.Text())
+					fmt.Fprintln(os.Stderr, "### Plugin "+command+" stderr: "+scanner.Text())
 				}
 
 				if err = cmd.Wait(); err != nil {
