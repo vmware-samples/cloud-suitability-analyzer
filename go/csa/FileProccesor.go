@@ -296,6 +296,7 @@ func (csaService *CsaService) processPatterns(run *model.Run, app *model.Applica
 			// RunPlugin(run, app, file, line, target, rule, pattern, output, Value, file.FQN)
 		} else {
 			matchFunc := func() (bool, string) {
+				fmt.Println("%%%%%%%%%%%%")
 				return rule.Patterns[i].Match(target)
 			}
 
@@ -336,8 +337,11 @@ func (csaService *CsaService) processPatterns(run *model.Run, app *model.Applica
 				}
 			}
 
-			// if value, ok := path.String(root); ok
-			if ok, result := matchFunc(); ok {
+			matched, result := matchFunc();
+
+			if matched && !rule.Negative {
+				fmt.Println("#################^ " + rule.Name)
+				
 				if len(result) > 0 {
 					target = regexp.MustCompile(`\r?\n`).ReplaceAllString(result, " ")
 				}
@@ -346,13 +350,21 @@ func (csaService *CsaService) processPatterns(run *model.Run, app *model.Applica
 
 				findings++
 				cnt++
-			} //End Match Condition
+			} else if !matched && rule.Negative { 
+				fmt.Println("#################v " + rule.Name)
+				csaService.handleRuleMatched(run, app, file, 0, target, rule, rule.Patterns[i], output, "", nil)
 
+				findings++
+				cnt++
+			}	
 		}
 
 		pcnt++
-
 	} //End Pattern For Loop
+
+	/*
+		*************** MAYBE HERE!!!!!!!
+	*/
 
 	run.AddFindings(findings)
 	rule.Metric.Accumulate(pcnt, cnt, time.Since(start))

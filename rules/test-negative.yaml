@@ -1,0 +1,11 @@
+name: test-negative
+filetype: (cs$)
+target: file
+type: regex
+advice: Negative.
+readiness: 10
+effort: 3
+category: Testing
+negative: true
+patterns:
+- value: GOOD

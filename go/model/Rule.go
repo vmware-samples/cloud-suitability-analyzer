@@ -36,6 +36,7 @@ type Rule struct {
 	regex           *regexp.Regexp `gorm:"-" json:"-" yaml:"-"`
 	Metric          *RuleMetric    `gorm:"-" json:"-" yaml:"-"`
 	overrideApplies bool           `gorm:"-" json:"-" yaml:"-"`
+	Negative		bool           `gorm:"type:integer"`
 	sync.Mutex      `gorm:"-" json:"-" yaml:"-"`
 }
 

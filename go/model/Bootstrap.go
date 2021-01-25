@@ -5,7 +5,7 @@
 package model
 
 //Created By BootstrapRulesTemplate.txt found under go/resources folder
-//Created @ 2020-12-14 22:04:56.328905875 +0000 UTC m=+0.040002813
+//Created @ 2021-01-15 14:53:04.751301659 +0000 UTC m=+0.031219902
 
 func BootstrapRules() []Rule {
     var BootstrapRules = []Rule{
@@ -444,6 +444,7 @@ func BootstrapRules() []Rule {
             Patterns:
             []Pattern{  { Type: "", Pattern: "", Value: "EventLogTraceListener", Advice: "", Effort: 0, Readiness: 0, Criticality: "", Category: "", Tag: "", Recipe: "", },
              { Type: "", Pattern: "", Value: "EventLog", Advice: "", Effort: 0, Readiness: 0, Criticality: "", Category: "", Tag: "", Recipe: "", },
+             { Type: "", Pattern: "", Value: "UmbelEventLog", Advice: "", Effort: 0, Readiness: 0, Criticality: "", Category: "", Tag: "", Recipe: "", },
              }, },
         
             { Name: "dotnet-oracle-umanaged", FileType: "(cs$|vb$)", Target: "line", Type: "contains", DefaultPattern: "", Advice: "Oracle unmanaged driver requires including binaries with app", Effort: 3, Readiness: 8, Impact: "", Category: "DatabaseAccess", Criticality: "",
@@ -455,7 +456,7 @@ func BootstrapRules() []Rule {
             []Pattern{  { Type: "", Pattern: "", Value: "Oracle.DataAccess", Advice: "Oracle unmanaged driver requires including binaries with app -- can use buildpack.", Effort: 0, Readiness: 0, Criticality: "", Category: "", Tag: "", Recipe: "", },
              }, },
         
-            { Name: "dotnet-security", FileType: "(cs$|vb$)", Target: "line", Type: "contains", DefaultPattern: "", Advice: "Relying on Windows certificate stores is problematic in a cloud environment.", Effort: 3, Readiness: 10, Impact: "", Category: "Security", Criticality: "",
+            { Name: "dotnet-security", FileType: "(cs$|vb$)", Target: "file", Type: "contains", DefaultPattern: "", Advice: "Relying on Windows certificate stores is problematic in a cloud environment.", Effort: 3, Readiness: 10, Impact: "", Category: "Security", Criticality: "",
             Tags:
             []Tag{  { Value: "api",}, },
             Recipes:
@@ -2513,6 +2514,15 @@ func BootstrapRules() []Rule {
             []Recipe{  },
             Patterns:
             []Pattern{  { Type: "", Pattern: "", Value: "DTS", Advice: "SSIS is not supported on CloudFoundry. Consider leaving the packages in an external SQL Server deployment or rewrite them in a cloud native ETL Framework like Spring Cloud Data Flow.", Effort: 0, Readiness: 0, Criticality: "", Category: "", Tag: "", Recipe: "", },
+             }, },
+        
+            { Name: "test-negative", FileType: "(cs$)", Target: "file", Type: "regex", DefaultPattern: "", Advice: "Negative.", Effort: 3, Readiness: 10, Impact: "", Category: "Testing", Criticality: "",
+            Tags:
+            []Tag{  },
+            Recipes:
+            []Recipe{  },
+            Patterns:
+            []Pattern{  { Type: "", Pattern: "", Value: "THIS\\_SHOULD\\_BE\\_THERE\\_TO\\_BE\\_GOOD", Advice: "", Effort: 0, Readiness: 0, Criticality: "", Category: "", Tag: "", Recipe: "", },
              }, },
         
             { Name: "weblogic-cluster-config", FileType: "conf$", Target: "line", Type: "regex", DefaultPattern: "^%s.*", Advice: "weblogic clusters cannot run in K8S", Effort: 1, Readiness: 0, Impact: "", Category: "wlcluster", Criticality: "",
