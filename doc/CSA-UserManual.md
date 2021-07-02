@@ -661,7 +661,7 @@ tags:
 
 ### Overview
 
-The `cas ui` command launches a browser-based visual explorer. You'll see `csa` write out some status information then the last line `Using Http FileSystem`. This is your indication that `csa ui` is waiting for you to directory your browser to `localhost:3001`
+The `csa ui` command launches a browser-based visual explorer. You'll see `csa` write out some status information then the last line `Using Http FileSystem`. This is your indication that `csa ui` is waiting for you to directory your browser to `localhost:3001`
 
 ```bash
 Csa: 1.63.0-rev.2 DBEngine: sqlite-3.25.2	DBName: csa.db
